@@ -2,7 +2,7 @@
   "name": "yummyRecipesBot",
   "version": "1.0.0",
   "main": "index.js",
-  "type": "commonjs",
+  "type": "module",
   "scripts": {
     "start": "node ./dist/index.js",
     "dev": "nodemon ./dist/index.js",
@@ -10,8 +10,12 @@
   },
   "license": "MIT",
   "dependencies": {
+    "@vitalets/google-translate-api": "^9.2.0",
     "axios": "^1.7.2",
-    "telegraf": "^4.16.3"
+    "free-translate": "^0.6.1",
+    "telegraf": "^4.16.3",
+    "translate": "^3.0.0",
+    "tsc": "^2.0.4"
   },
   "devDependencies": {
     "@types/node": "^20.14.10",

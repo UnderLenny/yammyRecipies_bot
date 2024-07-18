@@ -1,6 +1,6 @@
 import { Telegraf } from "telegraf";
-import config from "./config";
-import { setupBot } from "./bot";
+import config from "./config.js";
+import { setupBot } from "./bot.js";
 
 const bot = new Telegraf(config.BOT_TOKEN);
 setupBot(bot);
