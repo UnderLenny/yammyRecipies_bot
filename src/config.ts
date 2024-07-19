@@ -7,5 +7,6 @@ export default {
   DEEPL_KEY: process.env.DEEPL_KEY || "",
   GIGACHAT_URL: process.env.GIGACHAT_URL || "",
   GIGACHAT_TOKEN: `${process.env.GIGACHAT_TOKEN}==` || "",
+  GIGACHAT_CLIENT_TOKEN: process.env.GIGACHAT_CLIENT_TOKEN || "",
   SCOPE: process.env.SCOPE || "",
 };
