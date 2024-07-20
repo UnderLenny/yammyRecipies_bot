@@ -1,6 +1,9 @@
 import { Context, Markup, Telegraf } from "telegraf";
 import { fetchRecipes } from "../services/apiService.js";
-import { handleIngredient } from "./handlers/getIngredientsHandler.js";
+import {
+  handleIngredient,
+  handleRecipe,
+} from "./handlers/getIngredientsHandler.js";
 import { handleReroll } from "./handlers/rerollHandler.js";
 
 export async function recipe(bot: Telegraf): Promise<void> {
@@ -45,21 +48,35 @@ export async function recipe(bot: Telegraf): Promise<void> {
             `Я думаю тебе может понравиться:\n${dishNameResponse}`,
             Markup.inlineKeyboard([
               Markup.button.callback("Давай другое", "reroll"),
-              Markup.button.callback("Получить ингридиенты", "get_ingredients"),
+              Markup.button.callback("Ингридиенты", "get_ingredients"),
             ])
           );
           await ctx.deleteMessage(messageID);
         }, 5000);
       }
-
+      let getIngredients: string;
       bot.action("get_ingredients", async (ctx) => {
-        const ingredients = await handleIngredient(dishNameResponse);
-        ctx.reply(`Лови ингридиенты🏹\n\n${ingredients}`);
+        getIngredients = await handleIngredient(dishNameResponse);
+        ctx.reply(
+          `Лови ингридиенты🏹\n\n${getIngredients}`,
+          Markup.inlineKeyboard([Markup.button.callback("Рецепт", "recipe")])
+        );
       });
 
       bot.action("reroll", async (ctx) => {
         const reroll = await handleReroll(products, dishNameResponse);
-        ctx.reply(`Что насчет этого?\n\n${reroll}`);
+        ctx.reply(
+          `Что насчет этого?\n\n${reroll}`,
+          Markup.inlineKeyboard([
+            Markup.button.callback("Давай другое", "reroll"),
+            Markup.button.callback("Ингридиенты", "get_ingredients"),
+          ])
+        );
+      });
+
+      bot.action("recipe", async (ctx) => {
+        const getRecipe = await handleRecipe(dishNameResponse, getIngredients);
+        ctx.reply(`Я думаю этот рецепт поможет тебе🧶\n\n${getRecipe}`);
       });
     });
   } catch (err) {
