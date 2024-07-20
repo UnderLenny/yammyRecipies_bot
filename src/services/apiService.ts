@@ -1,19 +1,37 @@
 import axios from "axios";
 import config from "../config.js";
-import { translateText } from "../utils/helpers.js";
+import { v4 as uuidv4 } from "uuid";
+import fs from "fs";
+import https from "https";
+import { GigaChat } from "gigachat-node";
 
-export const fetchRecipes = async (ingredient: string) => {
+const clientSecretKey = config.GIGACHAT_TOKEN;
+const isIgnoreTSL = true;
+const isPersonal = true;
+const autoRefreshToken = true;
+
+const client = new GigaChat(
+  clientSecretKey,
+  isIgnoreTSL,
+  isPersonal,
+  autoRefreshToken
+);
+await client.createToken();
+
+export const fetchRecipes = async (prompt: string) => {
   try {
-    const getRecipes = await axios.get(
-      `${config.API_URL}/recipes/complexSearch`,
-      {
-        params: {
-          apiKey: config.RECIPES_TOKEN,
-          query: await translateText(ingredient, "ru", "en"),
+    const response = await client.completion({
+      model: "GigaChat:latest",
+      messages: [
+        {
+          role: "user",
+          content: prompt,
         },
-      }
-    );
-    return getRecipes;
+      ],
+    });
+
+    const result = response.choices[0].message.content;
+    return result;
   } catch (err) {
     console.error(err);
   }
