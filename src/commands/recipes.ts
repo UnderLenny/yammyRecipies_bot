@@ -64,14 +64,32 @@ export async function recipe(bot: Telegraf): Promise<void> {
       });
 
       bot.action("reroll", async (ctx) => {
-        const reroll = await handleReroll(products, dishNameResponse);
-        ctx.reply(
-          `Что насчет этого?\n\n${reroll}`,
-          Markup.inlineKeyboard([
-            Markup.button.callback("Давай другое", "reroll"),
-            Markup.button.callback("Ингридиенты", "get_ingredients"),
-          ])
-        );
+        if (
+          ctx.callbackQuery &&
+          ctx.callbackQuery.message &&
+          "text" in ctx.callbackQuery.message
+        ) {
+          let reroll;
+          const currentMessage = ctx.callbackQuery.message.text;
+          let newMessage;
+
+          do {
+            reroll = await handleReroll(products, dishNameResponse);
+            newMessage = `Что насчет этого?\n\n${reroll}`;
+          } while (currentMessage === newMessage);
+
+          await ctx.editMessageText(
+            newMessage,
+            Markup.inlineKeyboard([
+              Markup.button.callback("Давай другое", "reroll"),
+              Markup.button.callback("Ингридиенты", "get_ingredients"),
+            ])
+          );
+        } else {
+          await ctx.reply(
+            "Не удалось получить информацию о предыдущем сообщении."
+          );
+        }
       });
 
       bot.action("recipe", async (ctx) => {
