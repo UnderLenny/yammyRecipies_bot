@@ -1,17 +1,19 @@
-import { Telegraf } from "telegraf";
+import {session, Telegraf} from "telegraf";
 import config from "./config.js";
 import { setupBot } from "./bot.js";
-import LocalSession from "telegraf-session-local";
+import {initDB} from "./services/dbService.js";
 
 const bot = new Telegraf(config.BOT_TOKEN);
+bot.use(session());
 // const localSession = new LocalSession({ database: "sessions.json" });
 // bot.use(localSession.middleware());
-setupBot(bot);
-
-bot
-  .launch()
-  .then(() => console.log("Bot started"))
-  .catch((err) => console.error("Error launching bot: ", err));
+(async () => {
+  await initDB(); // Инициализация базы данных
+  setupBot(bot);
+  bot.launch()
+      .then(() => console.log("Bot started"))
+      .catch((err) => console.error("Error launching bot: ", err));
+})();
 
 process.once("SIGINT", () => bot.stop("SIGINT"));
 process.once("SIGTERM", () => bot.stop("SIGTERM"));
