@@ -1,6 +1,6 @@
 // noinspection ES6MissingAwait
 // @ts-nocheck
-import { Context, Markup, Telegraf } from "telegraf";
+import { Markup, Telegraf } from "telegraf";
 import { fetchRecipes } from "../services/apiService.js";
 import {
   handleIngredient,
@@ -9,10 +9,13 @@ import {
 import { handleReroll } from "./handlers/rerollHandler.js";
 import {
   addRecipeRating,
-  getCachedResponse, getRecipeRating, getUserRatings, getUserSearchHistory,
+  getCachedResponse,
+  getRecipeRating,
+  getUserRatings,
+  getUserSearchHistory,
   saveResponseToCache,
   saveSearchQuery,
-  saveUserQuery
+  saveUser,
 } from "../services/dbService.js";
 
 export async function recipe(bot: Telegraf): Promise<void> {
@@ -25,7 +28,6 @@ export async function recipe(bot: Telegraf): Promise<void> {
     bot.hears("🍣Подобрать блюдо", async (ctx) => {
       const message = ctx.message.text;
       if (message.includes("🍣Подобрать блюдо")) {
-        // Сбрасываем предыдущее состояние
         if (ctx.session) {
           ctx.session.currentDish = null;
           ctx.session.currentIngredients = null;
@@ -42,49 +44,51 @@ export async function recipe(bot: Telegraf): Promise<void> {
 
     bot.on("text", async (ctx) => {
       const userId = ctx.from?.id;
+      const username = ctx.from?.username || null;
+      const firstName = ctx.from?.first_name || null;
+      const lastName = ctx.from?.last_name || null;
+      const languageCode = ctx.from?.language_code || null;
+
+      if (userId) {
+        await saveUser(userId, username, firstName, lastName, languageCode);
+      }
+
       const products = ctx.message.text;
 
-      // Сбрасываем предыдущее состояние
       if (ctx.session) {
         ctx.session.currentDish = null;
         ctx.session.currentIngredients = null;
       }
 
-      // Сохраняем поисковый запрос
       if (userId) {
         await saveSearchQuery(userId, products);
       }
 
-      // Проверяем кэш перед запросом
       const cachedResponse = await getCachedResponse(products);
       let dishNameResponse;
 
       if (cachedResponse) {
         dishNameResponse = cachedResponse;
       } else {
-        const dishName = `Я хочу приготовить блюдо с этими ингредиентами: ${products}. Пожалуйста, предоставьте ТОЛЬКО название блюда и ничего больше(описание блюда НЕ НУЖНО). Если название обширное предложи что-то из этого названия, его подвидов. Если ты получил какое-то неразборчивое, некорректное или не по теме название, но если это название какой-то съедобный продукт, мясо и все что-то разрешено есть в современной мире, то можешь скинуть название блюда, но если название не подходит, то напиши сообщение в таком формате(Я немного не понял что у тебя есть, но могу предложить тебе приготовить ( простенькое 1 блюдо)). Если это какое-то какое-то обширное название продукт(к примеру мясо(говядина и так далее), то просто напиши название блюда которого можно из него приготовить. Если продукты перечислены через запятую(их несколько), то учитывай все продукты`;
+        const dishName = `Я хочу приготовить блюдо с этими ингредиентами: ${products}. Пожалуйста, предоставьте ТОЛЬКО название блюда...`;
 
         dishNameResponse = await fetchRecipes(dishName);
 
-        // Кэшируем ответ
         if (dishNameResponse && userId) {
           await saveResponseToCache(products, dishNameResponse);
-          await saveUserQuery(userId, products, null);
         }
       }
 
-      // Сохраняем текущее блюдо в сессию
       if (ctx.session) {
         ctx.session.currentDish = dishNameResponse;
       }
 
       if (
-          dishNameResponse ===
-          "Как у нейросетевой языковой модели у меня не может быть настроения, но почему-то я совсем не хочу говорить на эту тему." ||
-          dishNameResponse ===
-          "Не люблю менять тему разговора, но вот сейчас тот самый случай." ||
-          dishNameResponse ===
-          "Что-то в вашем вопросе меня смущает. Может, поговорим на другую тему?"
+          [
+            "Как у нейросетевой языковой модели у меня не может быть настроения...",
+            "Не люблю менять тему разговора...",
+            "Что-то в вашем вопросе меня смущает...",
+          ].includes(dishNameResponse)
       ) {
         ctx.reply("Мне кажется такое нельзя есть");
       } else {
@@ -105,12 +109,10 @@ export async function recipe(bot: Telegraf): Promise<void> {
         }, 5000);
       }
 
-      // Обработчики действий привязываем к текущему контексту
       bot.action("get_ingredients", async (actionCtx) => {
         if (ctx.session?.currentDish) {
           const ingredients = await handleIngredient(ctx.session.currentDish);
 
-          // Сохраняем ингредиенты в сессию
           if (actionCtx.session) {
             actionCtx.session.currentIngredients = ingredients;
           }
@@ -119,7 +121,6 @@ export async function recipe(bot: Telegraf): Promise<void> {
               `Лови ингредиенты🏹\n\n${ingredients}`,
               Markup.inlineKeyboard([
                 Markup.button.callback("Рецепт", "recipe"),
-                Markup.button.callback("Оценить", "rate_recipe")
               ])
           );
         }
@@ -138,61 +139,87 @@ export async function recipe(bot: Telegraf): Promise<void> {
 
       bot.action("recipe", async (actionCtx) => {
         if (ctx.session?.currentDish && ctx.session?.currentIngredients) {
-          const getRecipe = await handleRecipe(ctx.session.currentDish, ctx.session.currentIngredients);
-          actionCtx.reply(`Я думаю этот рецепт поможет тебе🧶\n\n${getRecipe}`);
-        }
-      });
-
-      // Новое действие для оценки рецепта
-      bot.action("rate_recipe", async (ctx) => {
-        if (userId) {
-          await ctx.reply("Пожалуйста, оцените рецепт от 1 до 5:",
+          const getRecipe = await handleRecipe(
+              ctx.session.currentDish,
+              ctx.session.currentIngredients
+          );
+          actionCtx.reply(
+              `Я думаю этот рецепт поможет тебе🧶\n\n${getRecipe}`,
               Markup.inlineKeyboard([
-                Markup.button.callback("1️⃣", "rate_1"),
-                Markup.button.callback("2️⃣", "rate_2"),
-                Markup.button.callback("3️⃣", "rate_3"),
-                Markup.button.callback("4️⃣", "rate_4"),
-                Markup.button.callback("5️⃣", "rate_5")
+                Markup.button.callback("Оценить", "rate_recipe"),
               ])
           );
         }
       });
 
-      ["rate_1", "rate_2", "rate_3", "rate_4", "rate_5"].forEach(async (action) => {
-        bot.action(action, async (ctx) => {
-          if (userId) {
-            const rating = parseInt(action.split('_')[1]);
-            const recipeId = 1; // Замените на реальный механизм получения ID рецепта
-            await addRecipeRating(userId, recipeId, rating);
-
-            // Получаем средний рейтинг
-            const averageRating = await getRecipeRating(recipeId);
-
-            ctx.answerCbQuery(`Спасибо за оценку! Средний рейтинг: ${averageRating.toFixed(1)}`);
-          }
-        });
-      });
-
-      // Команда для просмотра истории поиска
-      bot.command('history', async (ctx) => {
+      bot.action("rate_recipe", async (ctx) => {
         if (userId) {
-          const searchHistory = await getUserSearchHistory(userId);
-          const historyText = searchHistory.map((item, index) =>
-              `${index + 1}. ${item.query} (${new Date(item.created_at).toLocaleString()})`
-          ).join('\n');
-
-          ctx.reply(`История ваших поисков:\n${historyText || 'История пуста'}`);
+          await ctx.reply(
+              "Пожалуйста, оцените рецепт от 1 до 5:",
+              Markup.inlineKeyboard([
+                Markup.button.callback("1️⃣", "rate_1"),
+                Markup.button.callback("2️⃣", "rate_2"),
+                Markup.button.callback("3️⃣", "rate_3"),
+                Markup.button.callback("4️⃣", "rate_4"),
+                Markup.button.callback("5️⃣", "rate_5"),
+              ])
+          );
         }
       });
 
-      bot.command('ratings', async (ctx) => {
+      ["rate_1", "rate_2", "rate_3", "rate_4", "rate_5"].forEach(
+          (action) => {
+            bot.action(action, async (ctx) => {
+              if (userId) {
+                const rating = parseInt(action.split("_")[1]);
+                const recipeId = 1; // Замените на реальный механизм получения ID рецепта
+                await addRecipeRating(userId, recipeId, rating);
+
+                const averageRating = await getRecipeRating(recipeId);
+
+                ctx.answerCbQuery(
+                    `Спасибо за оценку! Средний рейтинг: ${averageRating.toFixed(1)}`
+                );
+              }
+            });
+          }
+      );
+
+      bot.command("history", async (ctx) => {
+        if (userId) {
+          const searchHistory = await getUserSearchHistory(userId);
+          const historyText = searchHistory
+              .map(
+                  (item, index) =>
+                      `${index + 1}. ${item.query} (${new Date(
+                          item.created_at
+                      ).toLocaleString()})`
+              )
+              .join("\n");
+
+          ctx.reply(
+              `История ваших поисков:\n${historyText || "История пуста"}`
+          );
+        }
+      });
+
+      bot.command("ratings", async (ctx) => {
         if (userId) {
           const userRatings = await getUserRatings(userId);
-          const ratingsText = userRatings.map((item, index) =>
-              `${index + 1}. Рецепт ID: ${item.recipe_id}, Оценка: ${item.rating} (${new Date(item.created_at).toLocaleString()})`
-          ).join('\n');
+          const ratingsText = userRatings
+              .map(
+                  (item, index) =>
+                      `${index + 1}. Рецепт ID: ${item.recipe_id}, Оценка: ${
+                          item.rating
+                      } (${new Date(item.created_at).toLocaleString()})`
+              )
+              .join("\n");
 
-          ctx.reply(`Ваши оценки рецептов:\n${ratingsText || 'Вы пока не оценили ни одного рецепта'}`);
+          ctx.reply(
+              `Ваши оценки рецептов:\n${
+                  ratingsText || "Вы пока не оценили ни одного рецепта"
+              }`
+          );
         }
       });
     });
