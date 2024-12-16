@@ -32,7 +32,7 @@ export const initDB = async () => {
         user_id INTEGER NOT NULL,
         query TEXT NOT NULL,
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-        FOREIGN KEY (user_id) REFERENCES users(id)
+        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
       );
 
       CREATE TABLE IF NOT EXISTS recipe_ratings (
@@ -40,7 +40,8 @@ export const initDB = async () => {
         user_id INTEGER NOT NULL,
         recipe_id INTEGER NOT NULL,
         rating INTEGER CHECK (rating BETWEEN 1 AND 5) NOT NULL,
-        created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
       );
     `);
 
