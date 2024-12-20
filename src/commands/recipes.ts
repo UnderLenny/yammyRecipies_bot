@@ -128,6 +128,12 @@ export async function recipe(bot: Telegraf): Promise<void> {
 
       bot.action("reroll", async (actionCtx) => {
         const reroll = await handleReroll(products, dishNameResponse);
+
+        if (actionCtx.session) {
+          actionCtx.session.currentDish = reroll;
+          actionCtx.session.currentIngredients = null;
+        }
+
         actionCtx.reply(
             `Что насчет этого?\n\n${reroll}`,
             Markup.inlineKeyboard([
